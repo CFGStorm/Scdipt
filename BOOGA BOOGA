@@ -1,0 +1,124 @@
+-- BUGAGA KILL AURA + UI (настраиваемый кейбинд)
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:wait()
+local userInputService = game:GetService("UserInputService")
+
+_G.KillAuraEnabled = true
+_G.KillAuraRange = 15
+_G.AttackSpeed = 0.1
+_G.ToggleKey = Enum.KeyCode.K  -- по умолчанию K
+_G.waitingForKey = false
+
+-- UI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "KillAuraUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 280, 0, 140)
+frame.Position = UDim2.new(0.5, -140, 0.8, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.15
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Text = "Kill Aura [ON]"
+title.TextColor3 = Color3.fromRGB(100, 255, 100)
+title.BackgroundTransparency = 1
+
+local sliderLabel = Instance.new("TextLabel", frame)
+sliderLabel.Size = UDim2.new(1, 0, 0, 20)
+sliderLabel.Position = UDim2.new(0, 0, 0, 25)
+sliderLabel.Text = "Range: " .. _G.KillAuraRange
+sliderLabel.BackgroundTransparency = 1
+sliderLabel.TextColor3 = Color3.fromRGB(255,255,255)
+
+local slider = Instance.new("TextBox", frame)
+slider.Size = UDim2.new(0.6, 0, 0, 25)
+slider.Position = UDim2.new(0.2, 0, 0, 45)
+slider.Text = tostring(_G.KillAuraRange)
+slider.BackgroundColor3 = Color3.fromRGB(60,60,60)
+slider.TextColor3 = Color3.fromRGB(255,255,255)
+
+local keybindButton = Instance.new("TextButton", frame)
+keybindButton.Size = UDim2.new(0.8, 0, 0, 30)
+keybindButton.Position = UDim2.new(0.1, 0, 0, 75)
+keybindButton.Text = "Set Keybind: " .. tostring(_G.ToggleKey):gsub("Enum.KeyCode.", "")
+keybindButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
+keybindButton.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- установка дальности
+slider.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local num = tonumber(slider.Text)
+        if num then
+            _G.KillAuraRange = num
+            sliderLabel.Text = "Range: " .. _G.KillAuraRange
+        else
+            slider.Text = tostring(_G.KillAuraRange)
+        end
+    end
+end)
+
+-- настройка кейбинга
+keybindButton.MouseButton1Click:Connect(function()
+    _G.waitingForKey = true
+    keybindButton.Text = "Press any key..."
+    keybindButton.BackgroundColor3 = Color3.fromRGB(200,50,50)
+end)
+
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if _G.waitingForKey then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            _G.ToggleKey = input.KeyCode
+            keybindButton.Text = "Set Keybind: " .. tostring(_G.ToggleKey):gsub("Enum.KeyCode.", "")
+            keybindButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
+            _G.waitingForKey = false
+        end
+        return
+    end
+    
+    if input.KeyCode == _G.ToggleKey then
+        _G.KillAuraEnabled = not _G.KillAuraEnabled
+        if _G.KillAuraEnabled then
+            title.Text = "Kill Aura [ON]"
+            title.TextColor3 = Color3.fromRGB(100, 255, 100)
+        else
+            title.Text = "Kill Aura [OFF]"
+            title.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end
+end)
+
+-- КИЛЛ АУРА
+spawn(function()
+    while wait(_G.AttackSpeed) do
+        if _G.KillAuraEnabled and character and character:FindFirstChild("HumanoidRootPart") then
+            for _, target in pairs(game.Players:GetPlayers()) do
+                if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                    local rootPart = target.Character.HumanoidRootPart
+                    local distance = (character.HumanoidRootPart.Position - rootPart.Position).Magnitude
+                    if distance <= _G.KillAuraRange then
+                        local tool = character:FindFirstChildOfClass("Tool")
+                        if tool then
+                            tool:Activate()
+                        else
+                            local damageEvent = game:GetService("ReplicatedStorage"):FindFirstChild("DamageEvent")
+                            if damageEvent then
+                                damageEvent:FireServer(rootPart)
+                            end
+                        end
+                        character.HumanoidRootPart.CFrame = rootPart.CFrame * CFrame.new(0,0,2)
+                    end
+                end
+            end
+        end
+        wait()
+    end
+end)
+
+print("Kill Aura загружена. Нажми на кнопку в UI, чтобы назначить любую клавишу.")

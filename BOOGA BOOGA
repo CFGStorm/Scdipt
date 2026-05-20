@@ -7,9 +7,9 @@ local runService = game:GetService("RunService")
 local settings = {
     enabled = true,
     range = 20,
-    toggleKey = Enum.KeyCode.K,
-    walkSpeed = 28,
-    orbitRadius = 4.5
+    toggleKey = Enum.KeyCode.R,
+    walkSpeed = 19,
+    orbitRadius = 3,
 }
 
 local waitingForKey = false

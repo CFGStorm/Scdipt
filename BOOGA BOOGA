@@ -1,4 +1,4 @@
--- БУГА БУГА: ПОЛУПЛАВНАЯ KILL AURA (С РЕГУЛИРОВКОЙ РЕЗКОСТИ)
+-- БУГА БУГА: ПЛАВНАЯ KILL AURA (БЫСТРЕЕ ЦЕЛИ)
 local player = game.Players.LocalPlayer
 local userInputService = game:GetService("UserInputService")
 local runService = game:GetService("RunService")
@@ -8,8 +8,7 @@ local settings = {
     enabled = true,
     range = 15,
     toggleKey = Enum.KeyCode.K,
-    walkSpeed = 22,
-    sharpness = 0.7  -- 0 = плавно, 1 = резко (0.7 идеально)
+    walkSpeed = 24  -- скорость нашего персонажа (если у цели 16-18, то 24 хватит)
 }
 
 local waitingForKey = false
@@ -17,7 +16,7 @@ local character = nil
 local humanoid = nil
 local humanoidRootPart = nil
 
--- ПРИМЕНЕНИЕ СКОРОСТИ
+-- ФУНКЦИЯ ПРИМЕНЕНИЯ СКОРОСТИ
 local function applySpeed()
     if character and humanoid then
         humanoid.WalkSpeed = settings.walkSpeed
@@ -31,6 +30,7 @@ local function onCharacterAdded(newChar)
     humanoidRootPart = character:WaitForChild("HumanoidRootPart")
     wait(0.2)
     applySpeed()
+    print("Килл-аура перезапущена, скорость " .. settings.walkSpeed)
 end
 
 -- ЗАПУСК
@@ -40,7 +40,7 @@ humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 player.CharacterAdded:Connect(onCharacterAdded)
 applySpeed()
 
--- ПОИСК БЛИЖАЙШЕГО
+-- ПОИСК БЛИЖАЙШЕГО ПРОТИВНИКА
 local function getClosestTarget()
     if not character or not humanoidRootPart then return nil end
     local closest = nil
@@ -62,7 +62,7 @@ local function getClosestTarget()
     return closest
 end
 
--- ОСНОВНОЙ ЦИКЛ
+-- ОСНОВНОЙ ЦИКЛ (ЧЕРЕЗ HEARTBEAT ДЛЯ ПЛАВНОСТИ)
 local currentTarget = nil
 local attackCooldown = 0
 
@@ -71,7 +71,9 @@ runService.Heartbeat:Connect(function(deltaTime)
     if not character or not character.Parent then return end
     if not humanoid or not humanoidRootPart then return end
     
+    -- ОБНОВЛЯЕМ СКОРОСТЬ НА ВСЯКИЙ СЛУЧАЙ
     humanoid.WalkSpeed = settings.walkSpeed
+    
     currentTarget = getClosestTarget()
     
     if currentTarget and currentTarget.Character then
@@ -84,17 +86,17 @@ runService.Heartbeat:Connect(function(deltaTime)
             local distance = (myPos - targetPos).Magnitude
             
             if distance <= settings.range then
-                -- ЗА СПИНОЙ
+                -- ПОЗИЦИЯ ЗА СПИНОЙ ЦЕЛИ (на 2.5 студа)
                 local targetCFrame = targetRoot.CFrame
                 local behindTarget = targetCFrame.Position - targetCFrame.LookVector * 2.5
                 
-                -- ДВИЖЕНИЕ С РЕЗКОСТЬЮ (Lerp с настраиваемым коэфом)
-                local newPos = myPos:Lerp(behindTarget, settings.sharpness)
-                humanoidRootPart.CFrame = CFrame.new(newPos) * CFrame.Angles(0, (targetPos - myPos).Unit.X, 0)
+                -- ПЛАВНОЕ ДВИЖЕНИЕ К ПОЗИЦИИ ЗА СПИНОЙ
+                humanoid:MoveTo(behindTarget)
                 
-                -- АТАКА
-                if tick() - attackCooldown > 0.08 then
+                -- АТАКА (КАЖДЫЕ 0.1 СЕКУНДЫ)
+                if tick() - attackCooldown > 0.1 then
                     attackCooldown = tick()
+                    
                     local tool = character:FindFirstChildOfClass("Tool")
                     if tool then
                         tool:Activate()
@@ -120,8 +122,8 @@ screenGui.Name = "KillAuraUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 160, 0, 135)
-frame.Position = UDim2.new(0.02, 0, 0.75, 0)
+frame.Size = UDim2.new(0, 140, 0, 95)
+frame.Position = UDim2.new(0.02, 0, 0.8, 0)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 frame.BackgroundTransparency = 0.2
 frame.BorderSizePixel = 1
@@ -132,14 +134,13 @@ frame.Parent = screenGui
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1, 0, 0, 20)
-title.Text = "KILL AURA [ON]"
-title.TextColor3 = Color3.fromRGB(100,255,100)
+title.Text = settings.enabled and "KILL AURA [ON]" or "KILL AURA [OFF]"
+title.TextColor3 = settings.enabled and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,100,100)
 title.BackgroundTransparency = 1
 title.TextSize = 11
 
--- Скорость
 local speedLabel = Instance.new("TextLabel", frame)
-speedLabel.Size = UDim2.new(0.45, 0, 0, 15)
+speedLabel.Size = UDim2.new(0.5, 0, 0, 15)
 speedLabel.Position = UDim2.new(0, 0, 0, 22)
 speedLabel.Text = "Speed: " .. settings.walkSpeed
 speedLabel.BackgroundTransparency = 1
@@ -154,9 +155,8 @@ speedBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
 speedBox.TextColor3 = Color3.fromRGB(255,255,255)
 speedBox.TextSize = 10
 
--- Дальность
 local rangeLabel = Instance.new("TextLabel", frame)
-rangeLabel.Size = UDim2.new(0.45, 0, 0, 15)
+rangeLabel.Size = UDim2.new(0.5, 0, 0, 15)
 rangeLabel.Position = UDim2.new(0, 0, 0, 40)
 rangeLabel.Text = "Range: " .. settings.range
 rangeLabel.BackgroundTransparency = 1
@@ -171,27 +171,9 @@ rangeBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
 rangeBox.TextColor3 = Color3.fromRGB(255,255,255)
 rangeBox.TextSize = 10
 
--- Резкость
-local sharpLabel = Instance.new("TextLabel", frame)
-sharpLabel.Size = UDim2.new(0.45, 0, 0, 15)
-sharpLabel.Position = UDim2.new(0, 0, 0, 58)
-sharpLabel.Text = "Sharp: " .. settings.sharpness
-sharpLabel.BackgroundTransparency = 1
-sharpLabel.TextColor3 = Color3.fromRGB(200,200,200)
-sharpLabel.TextSize = 10
-
-local sharpBox = Instance.new("TextBox", frame)
-sharpBox.Size = UDim2.new(0.4, 0, 0, 15)
-sharpBox.Position = UDim2.new(0.55, 0, 0, 58)
-sharpBox.Text = tostring(settings.sharpness)
-sharpBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
-sharpBox.TextColor3 = Color3.fromRGB(255,255,255)
-sharpBox.TextSize = 10
-
--- Кейбинд
 local keyButton = Instance.new("TextButton", frame)
 keyButton.Size = UDim2.new(0.9, 0, 0, 18)
-keyButton.Position = UDim2.new(0.05, 0, 0, 80)
+keyButton.Position = UDim2.new(0.05, 0, 0, 60)
 keyButton.Text = "Key: " .. tostring(settings.toggleKey):gsub("Enum.KeyCode.", "")
 keyButton.BackgroundColor3 = Color3.fromRGB(60,60,60)
 keyButton.TextColor3 = Color3.fromRGB(255,255,255)
@@ -203,26 +185,33 @@ local function refreshUI()
     title.TextColor3 = settings.enabled and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,100,100)
     speedLabel.Text = "Speed: " .. settings.walkSpeed
     rangeLabel.Text = "Range: " .. settings.range
-    sharpLabel.Text = "Sharp: " .. settings.sharpness
     keyButton.Text = "Key: " .. tostring(settings.toggleKey):gsub("Enum.KeyCode.", "")
 end
 
--- НАСТРОЙКИ
+-- НАСТРОЙКА СКОРОСТИ
 speedBox.FocusLost:Connect(function()
     local num = tonumber(speedBox.Text)
-    if num then settings.walkSpeed = num applySpeed() refreshUI() else speedBox.Text = settings.walkSpeed end
+    if num then
+        settings.walkSpeed = num
+        applySpeed()
+        refreshUI()
+    else
+        speedBox.Text = tostring(settings.walkSpeed)
+    end
 end)
 
+-- ДАЛЬНОСТЬ
 rangeBox.FocusLost:Connect(function()
     local num = tonumber(rangeBox.Text)
-    if num then settings.range = num refreshUI() else rangeBox.Text = settings.range end
+    if num then
+        settings.range = num
+        refreshUI()
+    else
+        rangeBox.Text = tostring(settings.range)
+    end
 end)
 
-sharpBox.FocusLost:Connect(function()
-    local num = tonumber(sharpBox.Text)
-    if num and num >= 0 and num <= 1 then settings.sharpness = num refreshUI() else sharpBox.Text = settings.sharpness end
-end)
-
+-- КЕЙБИНД
 keyButton.MouseButton1Click:Connect(function()
     waitingForKey = true
     keyButton.Text = "Press key..."
@@ -231,6 +220,7 @@ end)
 
 userInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
+    
     if waitingForKey then
         if input.KeyCode ~= Enum.KeyCode.Unknown then
             settings.toggleKey = input.KeyCode
@@ -240,11 +230,15 @@ userInputService.InputBegan:Connect(function(input, gameProcessed)
         end
         return
     end
+    
     if input.KeyCode == settings.toggleKey then
         settings.enabled = not settings.enabled
         refreshUI()
+        if not settings.enabled then
+            humanoid:MoveTo(humanoidRootPart.Position)
+        end
     end
 end)
 
 refreshUI()
-print("Kill Aura загружена. Sharpness = " .. settings.sharpness .. " (0.7 = идеально)")
+print("Плавная Kill Aura загружена. Скорость " .. settings.walkSpeed .. ". Нажми " .. tostring(settings.toggleKey):gsub("Enum.KeyCode.", "") .. " для вкл/выкл.")

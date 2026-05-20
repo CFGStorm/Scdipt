@@ -1,124 +1,250 @@
--- BUGAGA KILL AURA + UI (настраиваемый кейбинд)
+-- БУГА БУГА: ПОЛУПЛАВНАЯ KILL AURA (С РЕГУЛИРОВКОЙ РЕЗКОСТИ)
 local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:wait()
 local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
 
-_G.KillAuraEnabled = true
-_G.KillAuraRange = 15
-_G.AttackSpeed = 0.1
-_G.ToggleKey = Enum.KeyCode.K  -- по умолчанию K
-_G.waitingForKey = false
+-- НАСТРОЙКИ
+local settings = {
+    enabled = true,
+    range = 15,
+    toggleKey = Enum.KeyCode.K,
+    walkSpeed = 22,
+    sharpness = 0.7  -- 0 = плавно, 1 = резко (0.7 идеально)
+}
+
+local waitingForKey = false
+local character = nil
+local humanoid = nil
+local humanoidRootPart = nil
+
+-- ПРИМЕНЕНИЕ СКОРОСТИ
+local function applySpeed()
+    if character and humanoid then
+        humanoid.WalkSpeed = settings.walkSpeed
+    end
+end
+
+-- ПЕРЕЗАГРУЗКА ПОСЛЕ СМЕРТИ
+local function onCharacterAdded(newChar)
+    character = newChar
+    humanoid = character:WaitForChild("Humanoid")
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    wait(0.2)
+    applySpeed()
+end
+
+-- ЗАПУСК
+character = player.Character or player.CharacterAdded:wait()
+humanoid = character:WaitForChild("Humanoid")
+humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+player.CharacterAdded:Connect(onCharacterAdded)
+applySpeed()
+
+-- ПОИСК БЛИЖАЙШЕГО
+local function getClosestTarget()
+    if not character or not humanoidRootPart then return nil end
+    local closest = nil
+    local shortestDist = settings.range
+    for _, target in pairs(game.Players:GetPlayers()) do
+        if target ~= player and target.Character then
+            local targetChar = target.Character
+            local targetHumanoid = targetChar:FindFirstChild("Humanoid")
+            local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+            if targetHumanoid and targetHumanoid.Health > 0 and targetRoot then
+                local dist = (humanoidRootPart.Position - targetRoot.Position).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closest = target
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- ОСНОВНОЙ ЦИКЛ
+local currentTarget = nil
+local attackCooldown = 0
+
+runService.Heartbeat:Connect(function(deltaTime)
+    if not settings.enabled then return end
+    if not character or not character.Parent then return end
+    if not humanoid or not humanoidRootPart then return end
+    
+    humanoid.WalkSpeed = settings.walkSpeed
+    currentTarget = getClosestTarget()
+    
+    if currentTarget and currentTarget.Character then
+        local targetRoot = currentTarget.Character:FindFirstChild("HumanoidRootPart")
+        local targetHumanoid = currentTarget.Character:FindFirstChild("Humanoid")
+        
+        if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+            local targetPos = targetRoot.Position
+            local myPos = humanoidRootPart.Position
+            local distance = (myPos - targetPos).Magnitude
+            
+            if distance <= settings.range then
+                -- ЗА СПИНОЙ
+                local targetCFrame = targetRoot.CFrame
+                local behindTarget = targetCFrame.Position - targetCFrame.LookVector * 2.5
+                
+                -- ДВИЖЕНИЕ С РЕЗКОСТЬЮ (Lerp с настраиваемым коэфом)
+                local newPos = myPos:Lerp(behindTarget, settings.sharpness)
+                humanoidRootPart.CFrame = CFrame.new(newPos) * CFrame.Angles(0, (targetPos - myPos).Unit.X, 0)
+                
+                -- АТАКА
+                if tick() - attackCooldown > 0.08 then
+                    attackCooldown = tick()
+                    local tool = character:FindFirstChildOfClass("Tool")
+                    if tool then
+                        tool:Activate()
+                    else
+                        local damageEvent = game:GetService("ReplicatedStorage"):FindFirstChild("DamageEvent")
+                        if damageEvent then
+                            damageEvent:FireServer(targetRoot)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
 -- UI
+if player.PlayerGui:FindFirstChild("KillAuraUI") then
+    player.PlayerGui:FindFirstChild("KillAuraUI"):Destroy()
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "KillAuraUI"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 280, 0, 140)
-frame.Position = UDim2.new(0.5, -140, 0.8, 0)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BackgroundTransparency = 0.15
-frame.BorderSizePixel = 0
+frame.Size = UDim2.new(0, 160, 0, 135)
+frame.Position = UDim2.new(0.02, 0, 0.75, 0)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BackgroundTransparency = 0.2
+frame.BorderSizePixel = 1
+frame.BorderColor3 = Color3.fromRGB(255, 100, 100)
+frame.Active = true
+frame.Draggable = true
 frame.Parent = screenGui
 
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 25)
-title.Text = "Kill Aura [ON]"
-title.TextColor3 = Color3.fromRGB(100, 255, 100)
+title.Size = UDim2.new(1, 0, 0, 20)
+title.Text = "KILL AURA [ON]"
+title.TextColor3 = Color3.fromRGB(100,255,100)
 title.BackgroundTransparency = 1
+title.TextSize = 11
 
-local sliderLabel = Instance.new("TextLabel", frame)
-sliderLabel.Size = UDim2.new(1, 0, 0, 20)
-sliderLabel.Position = UDim2.new(0, 0, 0, 25)
-sliderLabel.Text = "Range: " .. _G.KillAuraRange
-sliderLabel.BackgroundTransparency = 1
-sliderLabel.TextColor3 = Color3.fromRGB(255,255,255)
+-- Скорость
+local speedLabel = Instance.new("TextLabel", frame)
+speedLabel.Size = UDim2.new(0.45, 0, 0, 15)
+speedLabel.Position = UDim2.new(0, 0, 0, 22)
+speedLabel.Text = "Speed: " .. settings.walkSpeed
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = Color3.fromRGB(200,200,200)
+speedLabel.TextSize = 10
 
-local slider = Instance.new("TextBox", frame)
-slider.Size = UDim2.new(0.6, 0, 0, 25)
-slider.Position = UDim2.new(0.2, 0, 0, 45)
-slider.Text = tostring(_G.KillAuraRange)
-slider.BackgroundColor3 = Color3.fromRGB(60,60,60)
-slider.TextColor3 = Color3.fromRGB(255,255,255)
+local speedBox = Instance.new("TextBox", frame)
+speedBox.Size = UDim2.new(0.4, 0, 0, 15)
+speedBox.Position = UDim2.new(0.55, 0, 0, 22)
+speedBox.Text = tostring(settings.walkSpeed)
+speedBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+speedBox.TextColor3 = Color3.fromRGB(255,255,255)
+speedBox.TextSize = 10
 
-local keybindButton = Instance.new("TextButton", frame)
-keybindButton.Size = UDim2.new(0.8, 0, 0, 30)
-keybindButton.Position = UDim2.new(0.1, 0, 0, 75)
-keybindButton.Text = "Set Keybind: " .. tostring(_G.ToggleKey):gsub("Enum.KeyCode.", "")
-keybindButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
-keybindButton.TextColor3 = Color3.fromRGB(255,255,255)
+-- Дальность
+local rangeLabel = Instance.new("TextLabel", frame)
+rangeLabel.Size = UDim2.new(0.45, 0, 0, 15)
+rangeLabel.Position = UDim2.new(0, 0, 0, 40)
+rangeLabel.Text = "Range: " .. settings.range
+rangeLabel.BackgroundTransparency = 1
+rangeLabel.TextColor3 = Color3.fromRGB(200,200,200)
+rangeLabel.TextSize = 10
 
--- установка дальности
-slider.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local num = tonumber(slider.Text)
-        if num then
-            _G.KillAuraRange = num
-            sliderLabel.Text = "Range: " .. _G.KillAuraRange
-        else
-            slider.Text = tostring(_G.KillAuraRange)
-        end
-    end
+local rangeBox = Instance.new("TextBox", frame)
+rangeBox.Size = UDim2.new(0.4, 0, 0, 15)
+rangeBox.Position = UDim2.new(0.55, 0, 0, 40)
+rangeBox.Text = tostring(settings.range)
+rangeBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+rangeBox.TextColor3 = Color3.fromRGB(255,255,255)
+rangeBox.TextSize = 10
+
+-- Резкость
+local sharpLabel = Instance.new("TextLabel", frame)
+sharpLabel.Size = UDim2.new(0.45, 0, 0, 15)
+sharpLabel.Position = UDim2.new(0, 0, 0, 58)
+sharpLabel.Text = "Sharp: " .. settings.sharpness
+sharpLabel.BackgroundTransparency = 1
+sharpLabel.TextColor3 = Color3.fromRGB(200,200,200)
+sharpLabel.TextSize = 10
+
+local sharpBox = Instance.new("TextBox", frame)
+sharpBox.Size = UDim2.new(0.4, 0, 0, 15)
+sharpBox.Position = UDim2.new(0.55, 0, 0, 58)
+sharpBox.Text = tostring(settings.sharpness)
+sharpBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+sharpBox.TextColor3 = Color3.fromRGB(255,255,255)
+sharpBox.TextSize = 10
+
+-- Кейбинд
+local keyButton = Instance.new("TextButton", frame)
+keyButton.Size = UDim2.new(0.9, 0, 0, 18)
+keyButton.Position = UDim2.new(0.05, 0, 0, 80)
+keyButton.Text = "Key: " .. tostring(settings.toggleKey):gsub("Enum.KeyCode.", "")
+keyButton.BackgroundColor3 = Color3.fromRGB(60,60,60)
+keyButton.TextColor3 = Color3.fromRGB(255,255,255)
+keyButton.TextSize = 9
+
+-- ОБНОВЛЕНИЕ UI
+local function refreshUI()
+    title.Text = settings.enabled and "KILL AURA [ON]" or "KILL AURA [OFF]"
+    title.TextColor3 = settings.enabled and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,100,100)
+    speedLabel.Text = "Speed: " .. settings.walkSpeed
+    rangeLabel.Text = "Range: " .. settings.range
+    sharpLabel.Text = "Sharp: " .. settings.sharpness
+    keyButton.Text = "Key: " .. tostring(settings.toggleKey):gsub("Enum.KeyCode.", "")
+end
+
+-- НАСТРОЙКИ
+speedBox.FocusLost:Connect(function()
+    local num = tonumber(speedBox.Text)
+    if num then settings.walkSpeed = num applySpeed() refreshUI() else speedBox.Text = settings.walkSpeed end
 end)
 
--- настройка кейбинга
-keybindButton.MouseButton1Click:Connect(function()
-    _G.waitingForKey = true
-    keybindButton.Text = "Press any key..."
-    keybindButton.BackgroundColor3 = Color3.fromRGB(200,50,50)
+rangeBox.FocusLost:Connect(function()
+    local num = tonumber(rangeBox.Text)
+    if num then settings.range = num refreshUI() else rangeBox.Text = settings.range end
+end)
+
+sharpBox.FocusLost:Connect(function()
+    local num = tonumber(sharpBox.Text)
+    if num and num >= 0 and num <= 1 then settings.sharpness = num refreshUI() else sharpBox.Text = settings.sharpness end
+end)
+
+keyButton.MouseButton1Click:Connect(function()
+    waitingForKey = true
+    keyButton.Text = "Press key..."
+    keyButton.BackgroundColor3 = Color3.fromRGB(200,50,50)
 end)
 
 userInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
-    if _G.waitingForKey then
+    if waitingForKey then
         if input.KeyCode ~= Enum.KeyCode.Unknown then
-            _G.ToggleKey = input.KeyCode
-            keybindButton.Text = "Set Keybind: " .. tostring(_G.ToggleKey):gsub("Enum.KeyCode.", "")
-            keybindButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
-            _G.waitingForKey = false
+            settings.toggleKey = input.KeyCode
+            refreshUI()
+            keyButton.BackgroundColor3 = Color3.fromRGB(60,60,60)
+            waitingForKey = false
         end
         return
     end
-    
-    if input.KeyCode == _G.ToggleKey then
-        _G.KillAuraEnabled = not _G.KillAuraEnabled
-        if _G.KillAuraEnabled then
-            title.Text = "Kill Aura [ON]"
-            title.TextColor3 = Color3.fromRGB(100, 255, 100)
-        else
-            title.Text = "Kill Aura [OFF]"
-            title.TextColor3 = Color3.fromRGB(255, 100, 100)
-        end
+    if input.KeyCode == settings.toggleKey then
+        settings.enabled = not settings.enabled
+        refreshUI()
     end
 end)
 
--- КИЛЛ АУРА
-spawn(function()
-    while wait(_G.AttackSpeed) do
-        if _G.KillAuraEnabled and character and character:FindFirstChild("HumanoidRootPart") then
-            for _, target in pairs(game.Players:GetPlayers()) do
-                if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-                    local rootPart = target.Character.HumanoidRootPart
-                    local distance = (character.HumanoidRootPart.Position - rootPart.Position).Magnitude
-                    if distance <= _G.KillAuraRange then
-                        local tool = character:FindFirstChildOfClass("Tool")
-                        if tool then
-                            tool:Activate()
-                        else
-                            local damageEvent = game:GetService("ReplicatedStorage"):FindFirstChild("DamageEvent")
-                            if damageEvent then
-                                damageEvent:FireServer(rootPart)
-                            end
-                        end
-                        character.HumanoidRootPart.CFrame = rootPart.CFrame * CFrame.new(0,0,2)
-                    end
-                end
-            end
-        end
-        wait()
-    end
-end)
-
-print("Kill Aura загружена. Нажми на кнопку в UI, чтобы назначить любую клавишу.")
+refreshUI()
+print("Kill Aura загружена. Sharpness = " .. settings.sharpness .. " (0.7 = идеально)")
